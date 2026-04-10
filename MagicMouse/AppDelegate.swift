@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import OSLog
+import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -212,10 +213,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private var settingsWindow: NSWindow?
+
     @objc
     private func openPreferences(_ sender: Any?) {
+        if let existing = settingsWindow, existing.isVisible {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let settingsView = SettingsView(model: AppModel.shared)
+        let hostingController = NSHostingController(rootView: settingsView)
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "MagicMouse Preferences"
+        window.styleMask = [.titled, .closable]
+        window.setContentSize(NSSize(width: 620, height: 400))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: sender)
+        settingsWindow = window
     }
 
     @objc
