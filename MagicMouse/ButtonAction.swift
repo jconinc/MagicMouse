@@ -2,6 +2,12 @@ import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
+extension CGEventFlags: @retroactive Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(rawValue)
+    }
+}
+
 struct KeyboardShortcut: Hashable {
     let keyCode: CGKeyCode
     let modifiers: CGEventFlags
