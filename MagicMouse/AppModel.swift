@@ -46,7 +46,7 @@ final class AppModel: ObservableObject {
     }
 
     func action(for buttonNumber: Int) -> ButtonAction {
-        buttonMappings[buttonNumber] ?? .none
+        buttonMappings[buttonNumber] ?? ButtonAction.none
     }
 
     func effectiveAction(forPhysicalButton buttonNumber: Int) -> ButtonAction {
@@ -65,7 +65,7 @@ final class AppModel: ObservableObject {
             return nil
         }
 
-        buttonMappings[buttonNumber] = .none
+        buttonMappings[buttonNumber] = ButtonAction.none
         persistMappings()
         return buttonNumber
     }
@@ -97,7 +97,7 @@ final class AppModel: ObservableObject {
         learnedButtonNumber = buttonNumber
         detectedButtons.insert(buttonNumber)
         if buttonMappings[buttonNumber] == nil {
-            buttonMappings[buttonNumber] = .none
+            buttonMappings[buttonNumber] = ButtonAction.none
             persistMappings()
         }
         pulseHighlight(for: buttonNumber)

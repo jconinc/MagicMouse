@@ -100,7 +100,9 @@ final class EventTapSupervisor {
         guard watchdogTimer == nil else { return }
 
         let timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            self?.watchdogTick()
+            MainActor.assumeIsolated {
+                self?.watchdogTick()
+            }
         }
         timer.tolerance = 1
         watchdogTimer = timer
@@ -245,9 +247,9 @@ final class EventTapSupervisor {
 
     private func recordCreationFailure(_ message: String) {
         creationFailures += 1
-        logger.error("\(message, privacy: .public); attempt \(creationFailures, privacy: .public) of 3")
+        logger.error("\(message, privacy: .public); attempt \(self.creationFailures, privacy: .public) of 3")
 
-        guard creationFailures >= 3 else {
+        guard self.creationFailures >= 3 else {
             return
         }
 
