@@ -25,18 +25,18 @@ final class ActionDispatcher {
     }
 
     private func post(shortcut: KeyboardShortcut, actionName: String) {
-        guard let source = CGEventSource(stateID: .hidSystemState),
+        guard let source = CGEventSource(stateID: .combinedSessionState),
               let keyDown = CGEvent(keyboardEventSource: source, virtualKey: shortcut.keyCode, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: shortcut.keyCode, keyDown: false) else {
             logger.error("Failed to create synthetic keyboard events for \(actionName, privacy: .public)")
             return
         }
 
-        keyDown.flags = shortcut.modifiers
-        keyUp.flags = shortcut.modifiers
+        keyDown.flags = CGEventFlags(rawValue: shortcut.modifiers.rawValue | CGEventFlags.maskNonCoalesced.rawValue)
+        keyUp.flags = CGEventFlags(rawValue: shortcut.modifiers.rawValue | CGEventFlags.maskNonCoalesced.rawValue)
 
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        keyDown.post(tap: .cgSessionEventTap)
+        keyUp.post(tap: .cgSessionEventTap)
 
         logger.info("Posted action \(actionName, privacy: .public) using key code \(shortcut.keyCode, privacy: .public)")
     }
