@@ -20,6 +20,7 @@ final class EventTapSupervisor {
     private var runLoopSource: CFRunLoopSource?
     private var watchdogTimer: Timer?
     private var suppressedButtons = Set<Int>()
+    private var pendingActionsByButton: [Int: ButtonAction] = [:]
     private var sessionIsActive = true
     private var creationFailures = 0
     private var retriesExhausted = false
@@ -207,6 +208,7 @@ final class EventTapSupervisor {
         self.eventTap = eventTap
         runLoopSource = source
         suppressedButtons.removeAll()
+        pendingActionsByButton.removeAll()
         lastProbeDate = Date()
 
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
@@ -226,6 +228,7 @@ final class EventTapSupervisor {
 
     private func tearDownTap() {
         suppressedButtons.removeAll()
+        pendingActionsByButton.removeAll()
 
         if let source = runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
@@ -312,8 +315,8 @@ final class EventTapSupervisor {
         }
 
         suppressedButtons.insert(buttonNumber)
+        pendingActionsByButton[buttonNumber] = action
         logger.info("Handled mouse button \(buttonNumber, privacy: .public) with action \(action.loggingName, privacy: .public)")
-        actionDispatcher.perform(action)
         return nil
     }
 
@@ -324,6 +327,14 @@ final class EventTapSupervisor {
         }
 
         if suppressedButtons.remove(buttonNumber) != nil {
+            if let action = pendingActionsByButton.removeValue(forKey: buttonNumber) {
+                // Post synthetic keys after the callback returns to avoid tap re-entrancy
+                // and to ensure the physical mouse button is no longer held.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.actionDispatcher.perform(action)
+                }
+            }
             logger.debug("Swallowed mouse button \(buttonNumber, privacy: .public) up")
             return nil
         }
