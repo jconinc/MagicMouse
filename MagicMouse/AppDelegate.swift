@@ -45,7 +45,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installWorkspaceObservers()
         refreshMenuState()
         updateStatusIcon()
+        requestAutomationPermission()
         eventTapSupervisor.start()
+    }
+
+    /// Trigger the Automation permission prompt by sending a no-op Apple Event
+    /// to System Events. macOS will show the "wants to control System Events"
+    /// dialog if permission hasn't been granted yet.
+    private func requestAutomationPermission() {
+        let script = NSAppleScript(source: """
+            tell application "System Events" to return 1
+        """)
+        var error: NSDictionary?
+        script?.executeAndReturnError(&error)
+        if let error {
+            logger.warning("Automation permission not yet granted: \(error, privacy: .public)")
+        } else {
+            logger.info("Automation permission granted")
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
