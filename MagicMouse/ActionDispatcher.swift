@@ -61,7 +61,7 @@ final class ActionDispatcher {
     private func postKeyViaProxy(source: CGEventSource, proxy: CGEventTapProxy, keyCode: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
         guard let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: keyDown) else { return }
         event.flags = flags
-        CGEventTapPostEvent(proxy, event)
+        proxy.postEvent(event)
     }
 
     // MARK: - Direct posting (fallback)
