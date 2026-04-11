@@ -22,6 +22,8 @@
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>MagicMouse needs to send keyboard shortcuts to switch spaces and trigger Mission Control actions.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>
