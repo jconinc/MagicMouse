@@ -9,15 +9,13 @@ final class ActionDispatcher {
 
     func perform(_ action: ButtonAction) {
         guard let shortcut = action.shortcut else { return }
-        postDirect(shortcut: shortcut, actionName: action.loggingName)
+        postViaOsascript(shortcut: shortcut, actionName: action.loggingName)
     }
 
-    /// Post key events through the CGEventTap proxy. This is the most reliable
-    /// method — events posted via the proxy bypass our own tap and go straight
-    /// to the system, using only the Accessibility permission we already have.
+    /// Also called from EventTapSupervisor with the proxy — but we don't use
+    /// the proxy anymore since proxy-posted events go to the app, not the system.
     func performViaProxy(_ action: ButtonAction, proxy: CGEventTapProxy) {
-        guard let shortcut = action.shortcut else { return }
-        postViaProxy(shortcut: shortcut, proxy: proxy, actionName: action.loggingName)
+        perform(action)
     }
 
     @discardableResult
@@ -33,70 +31,33 @@ final class ActionDispatcher {
         return true
     }
 
-    // MARK: - Proxy-based posting (preferred)
+    // MARK: - osascript subprocess
 
-    private func postViaProxy(shortcut: KeyboardShortcut, proxy: CGEventTapProxy, actionName: String) {
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
-            logger.error("Failed to create event source for \(actionName, privacy: .public)")
-            return
+    /// Shell out to /usr/bin/osascript to send keystrokes via System Events.
+    /// This is the only method confirmed to trigger Mission Control shortcuts
+    /// on macOS 26. osascript as a system binary may have implicit trust for
+    /// System Events automation.
+    private func postViaOsascript(shortcut: KeyboardShortcut, actionName: String) {
+        var modifierList: [String] = []
+        if shortcut.modifiers.contains(.maskControl) { modifierList.append("control down") }
+        if shortcut.modifiers.contains(.maskCommand) { modifierList.append("command down") }
+        if shortcut.modifiers.contains(.maskAlternate) { modifierList.append("option down") }
+        if shortcut.modifiers.contains(.maskShift) { modifierList.append("shift down") }
+
+        let modifiers = modifierList.isEmpty ? "" : " using {\(modifierList.joined(separator: ", "))}"
+        let script = "tell application \"System Events\" to key code \(shortcut.keyCode)\(modifiers)"
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            logger.info("Posted action \(actionName, privacy: .public) via osascript")
+        } catch {
+            logger.error("osascript failed for \(actionName, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
-
-        // Post modifier key down
-        if shortcut.modifiers.contains(.maskControl) {
-            postKeyViaProxy(source: source, proxy: proxy, keyCode: CGKeyCode(kVK_Control), keyDown: true, flags: .maskControl)
-        }
-
-        // Post main key down + up with modifier flags
-        postKeyViaProxy(source: source, proxy: proxy, keyCode: shortcut.keyCode, keyDown: true, flags: shortcut.modifiers)
-        postKeyViaProxy(source: source, proxy: proxy, keyCode: shortcut.keyCode, keyDown: false, flags: shortcut.modifiers)
-
-        // Post modifier key up
-        if shortcut.modifiers.contains(.maskControl) {
-            postKeyViaProxy(source: source, proxy: proxy, keyCode: CGKeyCode(kVK_Control), keyDown: false, flags: [])
-        }
-
-        logger.info("Posted action \(actionName, privacy: .public) via proxy")
-    }
-
-    private func postKeyViaProxy(source: CGEventSource, proxy: CGEventTapProxy, keyCode: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
-        guard let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: keyDown) else { return }
-        event.flags = flags
-        event.tapPostEvent(proxy)
-    }
-
-    // MARK: - Direct posting (fallback)
-
-    private func postDirect(shortcut: KeyboardShortcut, actionName: String) {
-        guard let source = CGEventSource(stateID: .hidSystemState) else {
-            logger.error("Failed to create event source for \(actionName, privacy: .public)")
-            return
-        }
-
-        // Control key down
-        if shortcut.modifiers.contains(.maskControl) {
-            if let ctrlDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_Control), keyDown: true) {
-                ctrlDown.flags = .maskControl
-                ctrlDown.post(tap: .cghidEventTap)
-            }
-        }
-
-        // Main key down + up
-        if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: shortcut.keyCode, keyDown: true),
-           let keyUp = CGEvent(keyboardEventSource: source, virtualKey: shortcut.keyCode, keyDown: false) {
-            keyDown.flags = shortcut.modifiers
-            keyUp.flags = shortcut.modifiers
-            keyDown.post(tap: .cghidEventTap)
-            keyUp.post(tap: .cghidEventTap)
-        }
-
-        // Control key up
-        if shortcut.modifiers.contains(.maskControl) {
-            if let ctrlUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_Control), keyDown: false) {
-                ctrlUp.flags = []
-                ctrlUp.post(tap: .cghidEventTap)
-            }
-        }
-
-        logger.info("Posted action \(actionName, privacy: .public) direct")
     }
 }
