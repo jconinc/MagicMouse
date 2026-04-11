@@ -284,17 +284,17 @@ final class EventTapSupervisor {
             return Unmanaged.passUnretained(event)
 
         case .otherMouseDown:
-            return handleMouseButtonDown(event)
+            return handleMouseButtonDown(event, proxy: proxy)
 
         case .otherMouseUp:
-            return handleMouseButtonUp(event)
+            return handleMouseButtonUp(event, proxy: proxy)
 
         default:
             return Unmanaged.passUnretained(event)
         }
     }
 
-    private func handleMouseButtonDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func handleMouseButtonDown(_ event: CGEvent, proxy: CGEventTapProxy) -> Unmanaged<CGEvent>? {
         let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
         guard AppEnvironment.supportedButtonRange.contains(buttonNumber) else {
             return Unmanaged.passUnretained(event)
@@ -320,7 +320,7 @@ final class EventTapSupervisor {
         return nil
     }
 
-    private func handleMouseButtonUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func handleMouseButtonUp(_ event: CGEvent, proxy: CGEventTapProxy) -> Unmanaged<CGEvent>? {
         let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
         guard AppEnvironment.supportedButtonRange.contains(buttonNumber) else {
             return Unmanaged.passUnretained(event)
@@ -328,12 +328,7 @@ final class EventTapSupervisor {
 
         if suppressedButtons.remove(buttonNumber) != nil {
             if let action = pendingActionsByButton.removeValue(forKey: buttonNumber) {
-                // Post synthetic keys after the callback returns to avoid tap re-entrancy
-                // and to ensure the physical mouse button is no longer held.
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    self.actionDispatcher.perform(action)
-                }
+                actionDispatcher.performViaProxy(action, proxy: proxy)
             }
             logger.debug("Swallowed mouse button \(buttonNumber, privacy: .public) up")
             return nil
